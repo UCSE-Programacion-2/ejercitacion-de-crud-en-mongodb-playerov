@@ -15,6 +15,11 @@ const PORT = process.env.PORT || 3000;
  * 4. Llama a next().
  */
 // Tu código aquí
+app.use((req, res, next) => {
+    req.db = client.db('MundialDB');
+    req.collection = req.db.collection('equipos');
+    next();
+});
 
 /**
  * TODO: Implementar un endpoint GET /equipos
@@ -24,6 +29,12 @@ const PORT = process.env.PORT || 3000;
  */
 app.get('/equipos', async (req, res) => {
     // Tu código aquí
+    try {
+        const equipos = await req.collection.find({}).toArray();
+        res.status(200).json(equipos);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener los equipos' });
+    }
 });
 
 /**
@@ -36,6 +47,15 @@ app.get('/equipos', async (req, res) => {
  */
 app.get('/equipos/buscar', async (req, res) => {
     // Tu código aquí
+    try {
+        const { tecnico } = req.query;
+        const equipos = await req.collection.find({
+            tecnico: { $regex: tecnico, $options: 'i' }
+        }).toArray();
+        res.status(200).json(equipos);
+    } catch (error) {
+        res.status(500).json({ error: 'Error en la búsqueda' });
+    }
 });
 
 /**
@@ -49,6 +69,19 @@ app.get('/equipos/buscar', async (req, res) => {
  */
 app.get('/equipos/:id', async (req, res) => {
     // Tu código aquí
+    try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID inválido' });
+        }
+        const equipo = await req.collection.findOne({ _id: new ObjectId(id) });
+        if (!equipo) {
+            return res.status(404).json({ error: 'Equipo no encontrado' });
+        }
+        res.status(200).json(equipo);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al buscar el equipo' });
+    }
 });
 
 /**
@@ -61,6 +94,29 @@ app.get('/equipos/:id', async (req, res) => {
  */
 app.post('/equipos', async (req, res) => {
     // Tu código aquí
+try {
+        const { equipo, tecnico, continente, campeonatos_mundiales } = req.body;
+
+        // Validaciones estrictas de existencia y tipo de dato
+        if (
+            typeof equipo !== 'string' ||
+            typeof tecnico !== 'string' ||
+            typeof continente !== 'string' ||
+            typeof campeonatos_mundiales !== 'number'
+        ) {
+            return res.status(400).json({ error: 'Campos inválidos o incompletos' });
+        }
+
+        const nuevoEquipo = { equipo, tecnico, continente, campeonatos_mundiales };
+        
+        // Guardamos el documento (Crear)
+        const resultado = await req.collection.insertOne(nuevoEquipo);
+        nuevoEquipo._id = resultado.insertedId;
+
+        res.status(201).json(nuevoEquipo);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al crear el equipo' });
+    }
 });
 
 /**
@@ -73,6 +129,37 @@ app.post('/equipos', async (req, res) => {
  */
 app.put('/equipos/:id', async (req, res) => {
     // Tu código aquí
+   try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID inválido' });
+        }
+
+        const { equipo, tecnico, continente, campeonatos_mundiales } = req.body;
+
+        if (
+            typeof equipo !== 'string' ||
+            typeof tecnico !== 'string' ||
+            typeof continente !== 'string' ||
+            typeof campeonatos_mundiales !== 'number'
+        ) {
+            return res.status(400).json({ error: 'Campos inválidos o incompletos' });
+        }
+
+        const resultado = await req.collection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: { equipo, tecnico, continente, campeonatos_mundiales } }
+        );
+
+        if (resultado.matchedCount === 0) {
+            return res.status(404).json({ error: 'Equipo no encontrado' });
+        }
+
+        res.status(200).json({ mensaje: 'Equipo actualizado con éxito' });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al actualizar el equipo' });
+    }
 });
 
 /**
@@ -84,6 +171,25 @@ app.put('/equipos/:id', async (req, res) => {
  */
 app.delete('/equipos/:id', async (req, res) => {
     // Tu código aquí
+   try {
+        const { id } = req.params;
+
+        // 1. Validar ID
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID inválido' });
+        }
+
+        // 2. Ejecutar la remoción física (Eliminar)
+        const resultado = await req.collection.deleteOne({ _id: new ObjectId(id) });
+
+        if (resultado.deletedCount === 0) {
+            return res.status(404).json({ error: 'Equipo no encontrado' });
+        }
+
+        res.status(200).json({ mensaje: 'Equipo eliminado con éxito' });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al eliminar el equipo' });
+    }
 });
 
 // Iniciar el servidor solo si este archivo se ejecuta directamente
